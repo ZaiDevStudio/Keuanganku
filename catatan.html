@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catatan Keuanganku v4</title>
+<style>
+  body {
+    font-family: "Segoe UI", sans-serif;
+    background: #f5f5f5;
+    margin: 0;
+  }
+  header {
+    background: #4CAF50;
+    color: white;
+    padding: 15px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 20px;
+  }
+  .container {
+    max-width: 520px;
+    margin: 20px auto;
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+  }
+  input, select, button {
+    width: 100%;
+    padding: 10px;
+    margin: 5px 0;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+  }
+  button {
+    background: #4CAF50;
+    color: white;
+    border: none;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  button:hover { background: #45a049; }
+  .summary {
+    margin-top: 15px;
+    background: #fafafa;
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    font-weight: bold;
+  }
+  .list { margin-top: 20px; }
+  .item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #eee;
+    padding: 8px 0;
+  }
+  .item.income { color: #43a047; }
+  .item.expense { color: #e53935; }
+  .item small { color: #999; display: block; font-size: 12px; }
+  .btn {
+    border: none;
+    border-radius: 6px;
+    padding: 4px 8px;
+    margin-left: 4px;
+    cursor: pointer;
+  }
+  .btn-edit { background: #ffb300; color: #fff; }
+  .btn-delete { background: #e53935; color: #fff; }
+  .filter, .saldo-awal {
+    margin-top: 15px;
+    background: #f1f1f1;
+    border-radius: 8px;
+    padding: 10px;
+  }
+</style>
+</head>
+<body>
+  <header>💰 Catatan Keuanganku v4</header>
+  <div class="container">
+
+    <!-- Saldo Awal -->
+    <div class="saldo-awal">
+      <h4>🏦 Saldo Awal</h4>
+      <input type="number" id="saldoAwalInput" placeholder="Masukkan saldo awal (Rp)">
+      <button onclick="simpanSaldoAwal()">💾 Simpan Saldo Awal</button>
+      <small>Saldo awal disimpan otomatis dan bisa diubah kapan saja.</small>
+    </div>
+
+    <h3>Tambah / Edit Catatan</h3>
+    <input type="hidden" id="editIndex">
+    <input type="text" id="keterangan" placeholder="Keterangan (contoh: Beli makan)">
+    <input type="number" id="jumlah" placeholder="Jumlah (contoh: 50000)">
+    <select id="jenis">
+      <option value="income">Pemasukan</option>
+      <option value="expense">Pengeluaran</option>
+    </select>
+    <input type="date" id="tanggal">
+    <button onclick="simpanCatatan()">💾 Simpan Catatan</button>
+
+    <div class="filter">
+      <label><b>Filter berdasarkan tanggal:</b></label>
+      <input type="date" id="filterTanggal" onchange="tampilkanData()">
+      <button onclick="resetFilter()">Tampilkan Semua</button>
+    </div>
+
+    <div class="summary">
+      Saldo Awal: <span id="saldoAwal">0</span><br>
+      Pemasukan: <span id="totalIncome">0</span><br>
+      Pengeluaran: <span id="totalExpense">0</span><br>
+      <hr>
+      💰 Saldo Akhir: <span id="saldo">0</span>
+    </div>
+
+    <div class="list" id="daftar"></div>
+  </div>
+
+<script>
+let data = JSON.parse(localStorage.getItem('catatanKeuangan')) || [];
+let saldoAwal = parseInt(localStorage.getItem('saldoAwal')) || 0;
+
+// isi tanggal otomatis hari ini
+document.getElementById('tanggal').value = new Date().toISOString().slice(0,10);
+document.getElementById('saldoAwalInput').value = saldoAwal;
+
+function simpanLocal() {
+  localStorage.setItem('catatanKeuangan', JSON.stringify(data));
+}
+
+function simpanSaldoAwal() {
+  saldoAwal = parseInt(document.getElementById('saldoAwalInput').value) || 0;
+  localStorage.setItem('saldoAwal', saldoAwal);
+  tampilkanData();
+  alert("Saldo awal disimpan!");
+}
+
+function tampilkanData() {
+  const daftar = document.getElementById('daftar');
+  daftar.innerHTML = '';
+  const filterTanggal = document.getElementById('filterTanggal').value;
+
+  let totalIncome = 0;
+  let totalExpense = 0;
+
+  let filteredData = filterTanggal 
+    ? data.filter(item => item.tanggal === filterTanggal)
+    : data;
+
+  filteredData.sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal)); // urut terbaru dulu
+
+  filteredData.forEach((item, index) => {
+    const div = document.createElement('div');
+    div.className = `item ${item.jenis}`;
+    div.innerHTML = `
+      <div>
+        <strong>${item.keterangan}</strong> - Rp ${item.jumlah.toLocaleString('id-ID')}
+        <small>${item.tanggal}</small>
+      </div>
+      <div>
+        <button class="btn btn-edit" onclick="editCatatan(${index})">Edit</button>
+        <button class="btn btn-delete" onclick="hapusCatatan(${index})">Hapus</button>
+      </div>
+    `;
+    daftar.appendChild(div);
+
+    if (item.jenis === 'income') totalIncome += item.jumlah;
+    else totalExpense += item.jumlah;
+  });
+
+  document.getElementById('saldoAwal').textContent = saldoAwal.toLocaleString('id-ID');
+  document.getElementById('totalIncome').textContent = totalIncome.toLocaleString('id-ID');
+  document.getElementById('totalExpense').textContent = totalExpense.toLocaleString('id-ID');
+  document.getElementById('saldo').textContent = (saldoAwal + totalIncome - totalExpense).toLocaleString('id-ID');
+}
+
+function simpanCatatan() {
+  const keterangan = document.getElementById('keterangan').value.trim();
+  const jumlah = parseInt(document.getElementById('jumlah').value);
+  const jenis = document.getElementById('jenis').value;
+  const tanggal = document.getElementById('tanggal').value;
+  const editIndex = document.getElementById('editIndex').value;
+
+  if (!keterangan || !jumlah || !tanggal) {
+    alert("Isi semua kolom dengan benar!");
+    return;
+  }
+
+  if (editIndex) {
+    data[editIndex] = { keterangan, jumlah, jenis, tanggal };
+    document.getElementById('editIndex').value = '';
+    alert("Catatan diperbarui!");
+  } else {
+    data.push({ keterangan, jumlah, jenis, tanggal });
+  }
+
+  simpanLocal();
+  tampilkanData();
+  document.getElementById('keterangan').value = '';
+  document.getElementById('jumlah').value = '';
+  document.getElementById('tanggal').value = new Date().toISOString().slice(0,10);
+}
+
+function editCatatan(index) {
+  const item = data[index];
+  document.getElementById('keterangan').value = item.keterangan;
+  document.getElementById('jumlah').value = item.jumlah;
+  document.getElementById('jenis').value = item.jenis;
+  document.getElementById('tanggal').value = item.tanggal;
+  document.getElementById('editIndex').value = index;
+}
+
+function hapusCatatan(index) {
+  if (confirm("Yakin ingin menghapus catatan ini?")) {
+    data.splice(index, 1);
+    simpanLocal();
+    tampilkanData();
+  }
+}
+
+function resetFilter() {
+  document.getElementById('filterTanggal').value = '';
+  tampilkanData();
+}
+
+tampilkanData();
+</script>
+</body>
+</html>
