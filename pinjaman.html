@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catatan Piutang Lokal Lengkap</title>
+    <style>
+        /* --- CSS Styling --- */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 10px; /* Kurangi padding untuk layar kecil */
+        }
+        .container {
+            max-width: 900px; 
+            margin: auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            text-align: center;
+            color: #1a73e8;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="text"],
+        input[type="number"],
+        input[type="date"],
+        textarea {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box; 
+        }
+        button {
+            background-color: #1a73e8;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #0c61c5;
+        }
+        
+        /* START: CSS untuk Responsif dan Tabel Dapat Digeser */
+        .table-responsive {
+            overflow-x: auto; /* Kunci untuk gulir horizontal */
+        }
+        table {
+            min-width: 700px; /* Pastikan tabel cukup lebar untuk digeser */
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        /* END: CSS untuk Responsif */
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #1a73e8;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .text-right {
+            text-align: right;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .btn-group button {
+            width: auto;
+            padding: 5px 10px;
+            margin-right: 5px;
+            font-size: 0.9em;
+        }
+        .edit-btn { background-color: #ffc107; color: #333; }
+        .edit-btn:hover { background-color: #e0a800; }
+        .delete-btn { background-color: #dc3545; }
+        .delete-btn:hover { background-color: #c82333; }
+
+        #totalPiutang {
+            margin-top: 15px;
+            padding: 15px;
+            background-color: #e6f3ff;
+            border: 1px solid #1a73e8;
+            border-radius: 5px;
+            text-align: right;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        #totalPiutang span {
+            color: #1a73e8;
+            font-size: 1.3em;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📝 Formulir Catatan Piutang</h1>
+    <form id="formPiutang">
+        <input type="hidden" id="dataIndex" value="-1"> 
+        
+        <label for="tanggal">Tanggal:</label>
+        <input type="date" id="tanggal" required>
+        
+        <label for="nama">Nama Peminjam:</label>
+        <input type="text" id="nama" placeholder="Contoh: Toko Maju Jaya" required>
+        
+        <label for="nominal">Nominal (Rp):</label>
+        <input type="number" id="nominal" min="1" placeholder="Masukkan angka, contoh: 500000" required>
+        
+        <label for="keterangan">Keterangan (Detail Transaksi):</label>
+        <textarea id="keterangan" rows="3" placeholder="Masukkan keterangan"></textarea>
+        
+        <button type="submit" id="submitButton">Tambah Catatan</button>
+    </form>
+</div>
+
+<div class="container">
+    <h2>Daftar Piutang</h2>
+    
+    <div id="totalPiutang">
+        Total Piutang Saat Ini: <span id="totalNominal">Rp 0</span>
+    </div>
+
+    <div class="table-responsive"> 
+        <table id="tabelPiutang">
+            <thead>
+                <tr>
+                    <th>Tanggal</th>
+                    <th>Nama</th>
+                    <th>Keterangan</th>
+                    <th class="text-right">Nominal (Rp)</th>
+                    <th class="text-center">Aksi</th>
+                </tr>
+            </thead>
+            <tbody>
+                </tbody>
+        </table>
+    </div>
+    <br>
+    <button onclick="hapusSemuaData()" class="delete-btn">Hapus Semua Data</button>
+</div>
+
+<script>
+    // --- JavaScript untuk Menyimpan, Menampilkan, Edit, dan Total Data ---
+
+    const FORM = document.getElementById('formPiutang');
+    const TABEL_BODY = document.getElementById('tabelPiutang').getElementsByTagName('tbody')[0];
+    const TOTAL_NOMINAL_SPAN = document.getElementById('totalNominal');
+    const DATA_INDEX_INPUT = document.getElementById('dataIndex');
+    const SUBMIT_BUTTON = document.getElementById('submitButton');
+    const KEY_STORAGE = 'dataPiutang'; 
+
+    // 1. Fungsi utilitas untuk memformat nominal ke Rupiah
+    function formatRupiah(angka) {
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0
+        }).format(angka);
+    }
+    
+    // 2. Fungsi untuk Menghitung dan Menampilkan Total
+    function hitungTotal(data) {
+        const total = data.reduce((sum, item) => sum + item.nominal, 0);
+        TOTAL_NOMINAL_SPAN.textContent = formatRupiah(total);
+    }
+
+    // 3. Fungsi untuk Memuat dan Menampilkan Data
+    function tampilkanData() {
+        const dataPiutang = JSON.parse(localStorage.getItem(KEY_STORAGE)) || [];
+        TABEL_BODY.innerHTML = ''; 
+
+        // Hitung dan tampilkan total
+        hitungTotal(dataPiutang);
+
+        // Isi ulang tabel dengan data terbaru
+        dataPiutang.forEach((data, index) => {
+            const baris = TABEL_BODY.insertRow();
+            
+            baris.insertCell().textContent = data.tanggal; 
+            baris.insertCell().textContent = data.nama; 
+            baris.insertCell().textContent = data.keterangan; 
+            
+            const nominalCell = baris.insertCell();
+            nominalCell.textContent = formatRupiah(data.nominal);
+            nominalCell.classList.add('text-right');
+
+            const aksiCell = baris.insertCell();
+            aksiCell.classList.add('text-center');
+
+            // Tombol Edit
+            const tombolEdit = document.createElement('button');
+            tombolEdit.textContent = 'Edit';
+            tombolEdit.classList.add('edit-btn');
+            tombolEdit.onclick = () => muatDataUntukEdit(index);
+            
+            // Tombol Hapus
+            const tombolHapus = document.createElement('button');
+            tombolHapus.textContent = 'Hapus';
+            tombolHapus.classList.add('delete-btn');
+            tombolHapus.onclick = () => hapusData(index);
+            
+            aksiCell.appendChild(tombolEdit);
+            aksiCell.appendChild(tombolHapus);
+        });
+    }
+
+    // 4. Fungsi untuk Memuat Data ke Formulir (saat tombol Edit diklik)
+    function muatDataUntukEdit(index) {
+        const dataPiutang = JSON.parse(localStorage.getItem(KEY_STORAGE));
+        const data = dataPiutang[index];
+
+        // Isi formulir dengan data yang dipilih
+        document.getElementById('tanggal').value = data.tanggal;
+        document.getElementById('nama').value = data.nama;
+        document.getElementById('nominal').value = data.nominal;
+        document.getElementById('keterangan').value = data.keterangan;
+
+        // Set index data yang sedang diedit ke input tersembunyi
+        DATA_INDEX_INPUT.value = index; 
+
+        // Ubah teks tombol menjadi 'Simpan Perubahan'
+        SUBMIT_BUTTON.textContent = 'Simpan Perubahan';
+
+        // Gulirkan layar ke atas ke formulir
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // 5. Fungsi untuk Menambahkan/Memperbarui Data
+    FORM.addEventListener('submit', function(e) {
+        e.preventDefault(); 
+
+        const indexToEdit = parseInt(DATA_INDEX_INPUT.value);
+
+        const newEntry = {
+            tanggal: document.getElementById('tanggal').value,
+            nama: document.getElementById('nama').value,
+            nominal: parseInt(document.getElementById('nominal').value),
+            keterangan: document.getElementById('keterangan').value
+        };
+
+        let dataPiutang = JSON.parse(localStorage.getItem(KEY_STORAGE)) || [];
+
+        if (indexToEdit !== -1) {
+            // MODE EDIT
+            dataPiutang[indexToEdit] = newEntry;
+        } else {
+            // MODE TAMBAH BARU
+            dataPiutang.push(newEntry);
+        }
+
+        localStorage.setItem(KEY_STORAGE, JSON.stringify(dataPiutang));
+
+        // Reset status form
+        FORM.reset();
+        DATA_INDEX_INPUT.value = -1;
+        SUBMIT_BUTTON.textContent = 'Tambah Catatan';
+
+        // Perbarui tampilan tabel dan total
+        tampilkanData();
+    });
+
+    // 6. Fungsi untuk Menghapus Baris Data Tertentu
+    function hapusData(index) {
+        if (confirm("Apakah Anda yakin ingin menghapus catatan ini?")) {
+            let dataPiutang = JSON.parse(localStorage.getItem(KEY_STORAGE)) || [];
+            
+            dataPiutang.splice(index, 1);
+            
+            localStorage.setItem(KEY_STORAGE, JSON.stringify(dataPiutang));
+            tampilkanData();
+        }
+    }
+
+    // 7. Fungsi untuk Menghapus Semua Data
+    function hapusSemuaData() {
+        if (confirm("⚠️ Anda akan menghapus SEMUA catatan piutang. Lanjutkan?")) {
+            localStorage.removeItem(KEY_STORAGE);
+            tampilkanData();
+        }
+    }
+    
+    // Panggil fungsi tampilkanData saat halaman dimuat pertama kali
+    tampilkanData(); 
+</script>
+
+</body>
+</html>
